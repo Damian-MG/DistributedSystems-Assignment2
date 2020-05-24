@@ -26,23 +26,33 @@ def master(id, x , ibm_cos):
     # 8. Delete from COS “write_{id}”
     # 8. Back to step 1 until no "p_write_{id}" objects in the bucket
 
-    return write_permission_list
+    return write_permision_list
 
 
 def slave(id, x, ibm_cos):
     # 1. Write empty "p_write_{id}" object into COS
+    ibm_cos.put_object(Bucket=bucketname, Key=f"p_write_{id}")
     # 2. Monitor COS bucket each X seconds until it finds a file called "write_{id}"
     # 3. If write_{id} is in COS: get result.txt, append {id}, and put back to COS result.txt
     # 4. Finish
     # No need to return anything
 
+def my_function(bucketname, key, ibm_cos):
+
+    ibm_cos.put_object(Bucket=bucketname, Key=key, Body='Hola')
+    data = ibm_cos.get_object(Bucket=bucketname, Key=key)['Body'].read().decode('utf-8')
+
+    return data
 
 if __name__ == '__main__':
 
-    #pw = pywren.ibm_cf_executor()
-    #pw.call_async(master, 0)
-    #pw.map(slave, range(N_SLAVES))
-    #write_permission_list = pw.get_result()
+    pw = pywren.ibm_cf_executor()
+    pw.call_async(my_function, ['geolacket', 'obj1.txt'])
+    print(pw.get_result())
+
+    # pw.call_async(master, 0)
+    # pw.map(slave, range(N_SLAVES))
+    # write_permission_list = pw.get_result()
 
     # Get result.txt
     # check if content of result.txt == write_permission_list
