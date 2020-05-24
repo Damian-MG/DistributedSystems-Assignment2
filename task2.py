@@ -2,6 +2,7 @@ import pywren_ibm_cloud as pywren
 import numpy as np
 from io import StringIO
 import time
+import json
 
 __author__      = "Geovanny Risco y Damian Maleno"
 __credits__     = ["Geovanny Risco", "Damian Maleno"]
@@ -10,7 +11,7 @@ __email__       = ["geovannyalexan.risco@estudiants.urv.cat", "franciscodamia.ma
 __status__      = "Developping"
 
 
-bucketname = 'damianmaleno' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
+bucketname = 'geolacket' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
 N_SLAVES = 10
 
 def master(id, x , ibm_cos):
@@ -33,21 +34,41 @@ def slave(id, x, ibm_cos):
     # 1. Write empty "p_write_{id}" object into COS
     ibm_cos.put_object(Bucket=bucketname, Key=f"p_write_{id}")
     # 2. Monitor COS bucket each X seconds until it finds a file called "write_{id}"
+    granted=False
+    while True:
+        try:
+            if(ibm_cos.get_object(Bucket=bucketname, Key=f"write_{id}")):
+                granted=True
+                break
+        except:    
+            print("Waiting for permission")
+        
+        time.sleep(x)
+
     # 3. If write_{id} is in COS: get result.txt, append {id}, and put back to COS result.txt
+    if (granted):
+        result = json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json")['Body'].read().decode('utf-8'))
+        result = result+" "+id
+        ibm_cos.put_object(Bucket=bucketname, Key="result.json", Body=json.dumps(result))
     # 4. Finish
     # No need to return anything
 
 def my_function(bucketname, key, ibm_cos):
 
-    ibm_cos.put_object(Bucket=bucketname, Key=key, Body='Hola')
-    data = ibm_cos.get_object(Bucket=bucketname, Key=key)['Body'].read().decode('utf-8')
+    #data=json.dumps("123456789")
+    #ibm_cos.put_object(Bucket=bucketname, Key=key, Body=data)
+    result = ibm_cos.get_object(Bucket=bucketname, Key=key)['Body'].read()
+    result = json.loads(result)
+    result=result+" "+"Alex"
+    data= json.dumps(result)
+    ibm_cos.put_object(Bucket=bucketname, Key="obj2.json", Body=data)
 
-    return data
+    return json.loads(ibm_cos.get_object(Bucket=bucketname, Key="obj2")['Body'].read())
 
 if __name__ == '__main__':
 
     pw = pywren.ibm_cf_executor()
-    pw.call_async(my_function, ['geolacket', 'obj1.txt'])
+    pw.call_async(my_function, [bucketname, 'obj1.json'])
     print(pw.get_result())
 
     # pw.call_async(master, 0)
