@@ -47,7 +47,7 @@ def my_function(bucketname, key, ibm_cos):
 if __name__ == '__main__':
 
     pw = pywren.ibm_cf_executor()
-    pw.call_async(my_function, ['geolacket', 'obj1.txt'])
+    pw.call_async(my_function, [bucketname, 'obj1.txt'])
     print(pw.get_result())
 
     # pw.call_async(master, 0)
