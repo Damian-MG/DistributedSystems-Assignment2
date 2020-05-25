@@ -31,7 +31,6 @@ def master(x , ibm_cos):
         time.sleep(x)
         try:
             contentsDict=ibm_cos.list_objects_v2(Bucket=bucketname, Prefix='p_write')['Contents'] #La funcion list_object devuelve un diccionario si encuentro el prefijo, sino salta una excepcion
-               
     # 2. List all "p_write_{id}" files
             nameFormat=re.compile("p_write_\d") #Comprobaremos que el fichero realmente tiene el formato adecuado
             for file in contentsDict:
@@ -51,20 +50,25 @@ def master(x , ibm_cos):
             ibm_cos.delete_object(Bucket=bucketname, Key=slave_name)
             write_permision_list.append(slave_id)
     # 7. Monitor "result.json" object each X seconds until it is updated
-            found=False
-            while not found:
-                result = json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json")['Body'].read().decode('utf-8'))
-                lastID = result.split(" ")[-1]
-                if (lastID==slave_id):
-                    found=True
-                time.sleep(x)
+            #last_update=ibm_cos.head_object(Bucket=bucketname, Key="result.json")['LastModified']
+            updated=False
+            time.sleep(x)
+            while not updated:
+                try:
+                    #result = json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json",IfModifiedSince=last_update)['Body'].read().decode('utf-8'))
+                    result= json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json")['Body'].read().decode('utf-8'))
+                    lastID = int(result.split(" ")[-1])
+                    if (lastID==slave_id):
+                        updated=True
+                except:
+                    time.sleep(0.2)
+   
     # 8. Delete from COS “write_{id}”
             ibm_cos.delete_object(Bucket=bucketname, Key=permission)
     # 8. Back to step 1 until no "p_write_{id}" objects in the bucket
-            if not requests_list:
-                requests=False
         except:
-            print("No requests yet")
+            requests=False
+
 
     return write_permision_list
     #return requests_list
@@ -77,6 +81,7 @@ def slave(id, x, ibm_cos):
     # 2. Monitor COS bucket each X seconds until it finds a file called "write_{id}"
     granted = False
     while True:
+        time.sleep(1)
         try:
             if(ibm_cos.get_object(Bucket=bucketname, Key=f"write_{id}")):
                 granted=True
@@ -84,8 +89,7 @@ def slave(id, x, ibm_cos):
         except:    
             print("Waiting for permission.")
         
-        time.sleep(x)
-
+        
     # 3. If write_{id} is in COS: get result.txt, append {id}, and put back to COS result.txt
     if (granted):
         result = json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json")['Body'].read().decode('utf-8'))
@@ -123,11 +127,11 @@ if __name__ == '__main__':
 
     pw = pywren.ibm_cf_executor()
     #pw.call_async(my_function, [bucketname, 'p_write_8'])
-    #print(pw.get_result())
 
     pw.call_async(master, 1)
-    pw.map(slave, range(N_SLAVES), )
+    pw.map(slave, range(N_SLAVES))
     write_permission_list = pw.get_result()
+    print(write_permission_list)
     pw.clean()
 
 
