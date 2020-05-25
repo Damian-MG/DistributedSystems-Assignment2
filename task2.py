@@ -13,7 +13,7 @@ __status__      = "Developping"
 
 
 bucketname = 'geolacket' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
-N_SLAVES = 10
+N_SLAVES = 10 #nunca mas de 100
 
 def master(id, x , ibm_cos):
     write_permision_list = []
@@ -40,13 +40,27 @@ def master(id, x , ibm_cos):
     # 4. Pop first object of the list "p_write_{id}"
     next_slave=sorted_list.pop(0) #Pop el primero en la lista, es decir, el mas antiguo
     # 5. Write empty "write_{id}" object into COS
-
+    slave_name=next_slave['Key'] #p_write_4
+    slave_id = int("".join(list(filter(str.isdigit,slave_name)))) #obtener id del p_write
+    permission=f"write_{slave_id}"
+    ibm_cos.put_object(Bucket=bucketname, Key=permission)
     # 6. Delete from COS "p_write_{id}", save {id} in write_permission_list
+    ibm_cos.delete_object(Bucket=bucketname, Key=slave_name)
+    write_permision_list.append(slave_id)
     # 7. Monitor "result.json" object each X seconds until it is updated
+    found=False
+    while not found:
+        result = json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json")['Body'].read().decode('utf-8'))
+        lastID = result.split(" ")[-1]
+        if (lastID==slave_id):
+            found=True
+        time.sleep(x)
     # 8. Delete from COS “write_{id}”
+    ibm_cos.delete_object(Bucket=bucketname, Key=permission)
     # 8. Back to step 1 until no "p_write_{id}" objects in the bucket
+    
 
-    return next_slave
+    return result
     #return sorted_list
     #return write_permision_list
 
@@ -102,7 +116,7 @@ def my_function(bucketname, key, ibm_cos):
 if __name__ == '__main__':
 
     pw = pywren.ibm_cf_executor()
-    #pw.call_async(my_function, [bucketname, 'p_write_7'])
+    #pw.call_async(my_function, [bucketname, 'p_write_8'])
     pw.call_async(master, 0)
     print(pw.get_result())
     pw.clean()
