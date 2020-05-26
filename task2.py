@@ -12,7 +12,7 @@ __email__       = ["geovannyalexan.risco@estudiants.urv.cat", "franciscodamia.ma
 __status__      = "Developping"
 
 
-bucketname = 'damianmaleno' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
+bucketname = 'geolacket' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
 N_SLAVES = 5 #nunca mas de 100
 
 def master(x , ibm_cos):
