@@ -1,15 +1,12 @@
 import pywren_ibm_cloud as pywren
-import numpy as np
-from io import StringIO
 import time
 import json
-import ibm_boto3
 
 __author__      = "Geovanny Risco y Damian Maleno"
 __credits__     = ["Geovanny Risco", "Damian Maleno"]
 __version__     = "1.0"
 __email__       = ["geovannyalexan.risco@estudiants.urv.cat", "franciscodamia.maleno@estudiants.urv.cat"]
-__status__      = "Developping"
+__status__      = "Beta"
 
 
 bucketname = 'geolacket' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
@@ -18,6 +15,7 @@ N_SLAVES = 5 #nunca mas de 100
 def master(x , ibm_cos):
     write_permision_list = []
     requests=True
+    counter=0
         
     # 1. monitor COS bucket each X seconds
     while requests:                    
@@ -36,7 +34,7 @@ def master(x , ibm_cos):
             slave_name=next_slave['Key'] 
             slave_id = int("".join(list(filter(str.isdigit,slave_name)))) #obtener id del p_write
             last_update=ibm_cos.head_object(Bucket=bucketname, Key="result.json")['LastModified'] #Obtenemos la última fecha de modificación del result.json
-            ibm_cos.put_object(Bucket=bucketname, Key=f"write_{slave_id}") 
+            ibm_cos.put_object(Bucket=bucketname, Key="write_{}".format(slave_id)) 
     # 6. Delete from COS "p_write_{id}", save {id} in write_permission_list
             ibm_cos.delete_object(Bucket=bucketname, Key=slave_name)
             write_permision_list.append(slave_id)
@@ -45,39 +43,39 @@ def master(x , ibm_cos):
                 time.sleep(x)
                 try:
                     result = json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json",IfModifiedSince=last_update)['Body'].read().decode('utf-8'))
-                    lastID = int(result.split(" ")[-1])
+                    lastID = result[-1]
                     if (lastID==slave_id):
                         break
                 except:
                     print("Waiting for update")
                     
-    # 8. Delete from COS “write_{id}”
-            ibm_cos.delete_object(Bucket=bucketname, Key=f"write_{slave_id}")
+    # 8. Delete from COS “write_{id}”        
+            ibm_cos.delete_object(Bucket=bucketname, Key="write_{}".format(slave_id))
     # 9. Back to step 1 until no "p_write_{id}" objects in the bucket
+            counter+=1
         except:
-            requests=False
+            time.sleep(x)
+            if (ibm_cos.list_objects_v2(Bucket=bucketname, Prefix='p_write')['KeyCount']==0 and counter >= N_SLAVES-1):
+                requests=False
 
     return write_permision_list
 
 
 def slave(id, x, ibm_cos):
     # 1. Write empty "p_write_{id}" object into COS
-    ibm_cos.put_object(Bucket=bucketname, Key=f"p_write_{id}")
+    ibm_cos.put_object(Bucket=bucketname, Key="p_write_{}".format(id))
     # 2. Monitor COS bucket each X seconds until it finds a file called "write_{id}"
     while True:
         time.sleep(x)
         try:
-            if(ibm_cos.get_object(Bucket=bucketname, Key=f"write_{id}")):
-                break
+            ibm_cos.get_object(Bucket=bucketname, Key="write_{}".format(id))
+            break
         except:    
             print("Waiting for permission.")  
         
     # 3. If write_{id} is in COS: get result.txt, append {id}, and put back to COS result.txt
     result = json.loads(ibm_cos.get_object(Bucket=bucketname, Key="result.json")['Body'].read().decode('utf-8'))
-    if result=="": #Comprobación para evitar que añada un espacio inicial
-        result = str(id)
-    else:
-        result = result+" "+str(id)
+    result.append(id)
     ibm_cos.put_object(Bucket=bucketname, Key="result.json", Body=json.dumps(result))
     # 4. Finish
     # No need to return anything
@@ -92,12 +90,15 @@ if __name__ == '__main__':
     try:
         ibm_cos.get_object(Bucket=bucketname, Key="result.json")
     except:
-        ibm_cos.put_object(Bucket=bucketname, Key="result.json", Body=json.dumps(""))
+        ibm_cos.put_object(Bucket=bucketname, Key="result.json", Body=json.dumps([]))
     
     #Start job
-    pw.call_async(master, 1)
+    start_time= time.time() #Para calcular el tiempo de calculo de pywren
+    pw.call_async(master, 0.5)
     pw.map(slave, range(N_SLAVES))
     write_permission_list = pw.get_result()[0]
+    elapsed_time = time.time() - start_time
+    print("Tiempo total: ",elapsed_time,"s")
     print(write_permission_list)
     pw.clean()
 
@@ -106,6 +107,6 @@ if __name__ == '__main__':
     print(result_json)
 
     # check if content of result.txt == write_permission_list
-    write_permission_list=json.dumps(" ".join(map(str,write_permission_list))) #Hay que pasar la lista a string porque result.json tiene formato string
+    write_permission_list=json.dumps(write_permission_list) 
     if (result_json==write_permission_list):
         print("Good job!")
