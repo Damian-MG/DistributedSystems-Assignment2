@@ -9,7 +9,7 @@ __email__       = ["geovannyalexan.risco@estudiants.urv.cat", "franciscodamia.ma
 __status__      = "Beta"
 
 
-bucketname = 'geolacket' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
+bucketname = 'damianmaleno' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
 N_SLAVES = 100 #nunca mas de 100
 
 def master(x , ibm_cos):
@@ -63,7 +63,7 @@ def slave(id, x, ibm_cos):
     ibm_cos.put_object(Bucket=bucketname, Key="p_write_{}".format(id))
     # 2. Monitor COS bucket each X seconds until it finds a file called "write_{id}"
     while True:
-        time.sleep(0.01)
+        time.sleep(0,01)
         try:
             ibm_cos.get_object(Bucket=bucketname, Key="write_{}".format(id)) #Si no encuentra el archivo lanzará una excepción
             break
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     
     #Start job
     start_time= time.time() #Para calcular el tiempo de calculo de pywren
-    pw.call_async(master, 0.01)
+    pw.call_async(master, 0,01)
     pw.map(slave, range(N_SLAVES))
     write_permission_list = pw.get_result()[0]
     elapsed_time = time.time() - start_time
