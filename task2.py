@@ -9,8 +9,8 @@ __email__       = ["geovannyalexan.risco@estudiants.urv.cat", "franciscodamia.ma
 __status__      = "Beta"
 
 
-bucketname = 'damianmaleno' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
-N_SLAVES = 100 #nunca mas de 100
+bucketname = 'geolacket' #nombre del bucket en el IBM cloud, 'geolacket'or 'damianmaleno'
+N_SLAVES = 10 #nunca mas de 100
 
 def master(x , ibm_cos):
     write_permission_list = []
@@ -63,7 +63,7 @@ def slave(id, x, ibm_cos):
     ibm_cos.put_object(Bucket=bucketname, Key="p_write_{}".format(id))
     # 2. Monitor COS bucket each X seconds until it finds a file called "write_{id}"
     while True:
-        time.sleep(0,01)
+        time.sleep(0.01)
         try:
             ibm_cos.get_object(Bucket=bucketname, Key="write_{}".format(id)) #Si no encuentra el archivo lanzará una excepción
             break
@@ -77,18 +77,11 @@ def slave(id, x, ibm_cos):
     # 4. Finish
     # No need to return anything
 
-def clean_bucket(all, ibm_cos):
-    objects_keys=[]
-    try:
-        content=ibm_cos.list_objects_v2(Bucket=bucketname, Prefix="pywren.jobs")['Contents']
-        for obj in content:
-            key=list(obj.items())[0]
-            objects_keys.append(dict(key))
-        #ibm_cos.delete_objects(Bucket=bucketname, Delete={'Objects':objects_keys})
-    except:
-        print("Nothing to delete.")
+def clean_bucket(self, ibm_cos):
+    content=ibm_cos.list_objects_v2(Bucket=bucketname)['Contents']
+    for obj in content:
+        ibm_cos.delete_object(Bucket=bucketname, Key=obj.get('Key'))
     
-    return objects_keys
 
 if __name__ == '__main__':
 
@@ -103,11 +96,10 @@ if __name__ == '__main__':
     
     #Start job
     start_time= time.time() #Para calcular el tiempo de calculo de pywren
-    pw.call_async(master, 0,01)
+    pw.call_async(master, 0.01)
     pw.map(slave, range(N_SLAVES))
     write_permission_list = pw.get_result()[0]
     elapsed_time = time.time() - start_time
-    pw.clean()
     print("Tiempo total: ",elapsed_time,"s")
     print(write_permission_list)
 
@@ -120,10 +112,4 @@ if __name__ == '__main__':
     if (result_json==write_permission_list):
         print("Good job!")
 
-    #ibm_cos.delete_object(Bucket=bucketname, Key="result.json")
-    #pw.call_async(clean_bucket, True)
-    #objects=pw.get_result()
-    #for i in objects:
-    #    print(i)
-    #print("\n")
-    #print(objects)
+    pw.call_async(clean_bucket, None)
