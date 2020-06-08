@@ -21,7 +21,7 @@ def master(x , ibm_cos):
         time.sleep(x)
         requests_list=[]
         try:
-            contentsDict=ibm_cos.list_objects_v2(Bucket=bucketname, Prefix='p_write')['Contents'] #La funcion list_object devuelve un diccionario si encuentro el prefijo, sino salta una excepcion
+            contentsDict=ibm_cos.list_objects_v2(Bucket=bucketname, Prefix='p_write')['Contents'] #La funcion list_object devuelve un diccionario si encuentra el prefijo, sino salta una excepcion
         # 2. List all "p_write_{id}" files
             for file in contentsDict:
                 requests_list.append(dict(list(file.items())[:2])) #Solo guardamos los campos de "Key" y "LastModified"
@@ -76,11 +76,6 @@ def slave(id, x, ibm_cos):
     ibm_cos.put_object(Bucket=bucketname, Key="result.json", Body=json.dumps(result))
     # 4. Finish
     # No need to return anything
-
-def clean_bucket(self, ibm_cos):
-    content=ibm_cos.list_objects_v2(Bucket=bucketname)['Contents']
-    for obj in content:
-        ibm_cos.delete_object(Bucket=bucketname, Key=obj.get('Key'))
     
 
 if __name__ == '__main__':
@@ -103,7 +98,7 @@ if __name__ == '__main__':
     print("Tiempo total: ",elapsed_time,"s")
     print(write_permission_list)
 
-    # Get result.txt
+    # Get result.json
     result_json = ibm_cos.get_object(Bucket=bucketname, Key='result.json')['Body'].read().decode('utf-8')
     print(result_json)
 
@@ -112,4 +107,8 @@ if __name__ == '__main__':
     if (result_json==write_permission_list):
         print("Good job!")
 
-    pw.call_async(clean_bucket, None)
+    #Empty the bucket
+    print("\nCleaning bucket...")
+    content=ibm_cos.list_objects_v2(Bucket=bucketname)['Contents']
+    for obj in content:
+        ibm_cos.delete_object(Bucket=bucketname, Key=obj.get('Key'))
